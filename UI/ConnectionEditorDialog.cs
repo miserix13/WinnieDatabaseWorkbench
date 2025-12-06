@@ -23,6 +23,7 @@ public class ConnectionEditorDialog : Form
     private TextBox _txtUsername = null!;
     private Label _lblPassword = null!;
     private TextBox _txtPassword = null!;
+    private CheckBox _chkWindowsAuth = null!;
     private Button _btnOk = null!;
     private Button _btnCancel = null!;
     private Button _btnTestConnection = null!;
@@ -99,6 +100,18 @@ public class ConnectionEditorDialog : Form
         this.Controls.Add(_txtDatabase);
         yPos += spacing;
 
+        // Windows Authentication (SQL Server only)
+        _chkWindowsAuth = new CheckBox 
+        { 
+            Text = "Use Windows Authentication",
+            Location = new Point(130, yPos), 
+            Size = new Size(controlWidth, 20),
+            Visible = false
+        };
+        _chkWindowsAuth.CheckedChanged += ChkWindowsAuth_CheckedChanged;
+        this.Controls.Add(_chkWindowsAuth);
+        yPos += spacing;
+
         // Username
         _lblUsername = new Label { Text = "Username:", Location = new Point(20, yPos), Size = new Size(labelWidth, 20) };
         _txtUsername = new TextBox { Location = new Point(130, yPos), Size = new Size(controlWidth, 20) };
@@ -158,6 +171,7 @@ public class ConnectionEditorDialog : Form
         _txtHost.Text = _connection.Host;
         _numPort.Value = _connection.Port > 0 ? _connection.Port : GetDefaultPort(_connection.DatabaseType);
         _txtDatabase.Text = _connection.Database;
+        _chkWindowsAuth.Checked = _connection.UseWindowsAuth;
         _txtUsername.Text = _connection.Username;
         _txtPassword.Text = _connection.Password;
     }
@@ -172,10 +186,20 @@ public class ConnectionEditorDialog : Form
         }
     }
 
+    private void ChkWindowsAuth_CheckedChanged(object? sender, EventArgs e)
+    {
+        bool useWindowsAuth = _chkWindowsAuth.Checked;
+        _lblUsername.Enabled = !useWindowsAuth;
+        _txtUsername.Enabled = !useWindowsAuth;
+        _lblPassword.Enabled = !useWindowsAuth;
+        _txtPassword.Enabled = !useWindowsAuth;
+    }
+
     private void UpdateFieldVisibility(DatabaseType dbType)
     {
         // LiteDB is file-based, hide host/port/username/password
         bool isFileBased = dbType == DatabaseType.LiteDB;
+        bool isSqlServer = dbType == DatabaseType.SqlServer;
         
         _lblHost.Visible = !isFileBased;
         _txtHost.Visible = !isFileBased;
@@ -185,6 +209,7 @@ public class ConnectionEditorDialog : Form
         _txtUsername.Visible = !isFileBased;
         _lblPassword.Visible = !isFileBased;
         _txtPassword.Visible = !isFileBased;
+        _chkWindowsAuth.Visible = isSqlServer;
 
         if (isFileBased)
         {
@@ -193,6 +218,12 @@ public class ConnectionEditorDialog : Form
         else
         {
             _lblDatabase.Text = "Database:";
+        }
+
+        // Trigger the Windows Auth checkbox logic
+        if (isSqlServer)
+        {
+            ChkWindowsAuth_CheckedChanged(null, EventArgs.Empty);
         }
     }
 
@@ -227,6 +258,7 @@ public class ConnectionEditorDialog : Form
         _connection.Host = _txtHost.Text.Trim();
         _connection.Port = (int)_numPort.Value;
         _connection.Database = _txtDatabase.Text.Trim();
+        _connection.UseWindowsAuth = _chkWindowsAuth.Checked;
         _connection.Username = _txtUsername.Text.Trim();
         _connection.Password = _txtPassword.Text;
     }

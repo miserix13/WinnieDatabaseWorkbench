@@ -10,6 +10,7 @@ public class ConnectionInfo
     public string Database { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    public bool UseWindowsAuth { get; set; } = false;
     public Dictionary<string, string> AdditionalProperties { get; set; } = new();
     
     public ConnectionInfo Clone()
@@ -24,6 +25,7 @@ public class ConnectionInfo
             Database = this.Database,
             Username = this.Username,
             Password = this.Password,
+            UseWindowsAuth = this.UseWindowsAuth,
             AdditionalProperties = new Dictionary<string, string>(this.AdditionalProperties)
         };
     }
