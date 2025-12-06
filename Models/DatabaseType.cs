@@ -9,5 +9,9 @@ public enum DatabaseType
     Firebird,
     MongoDB,
     LiteDB,
-    SurrealDB
+    SurrealDB,
+    Garnet,
+    Redis,
+    Chroma,
+    Qdrant
 }

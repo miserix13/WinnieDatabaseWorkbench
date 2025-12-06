@@ -45,10 +45,11 @@ public class ConnectionManagerDialog : Form
             Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
         };
 
-        _lvConnections.Columns.Add("Name", 200);
-        _lvConnections.Columns.Add("Database Type", 120);
-        _lvConnections.Columns.Add("Host", 150);
-        _lvConnections.Columns.Add("Database", 150);
+        _lvConnections.Columns.Add("Name", 180);
+        _lvConnections.Columns.Add("Database Type", 110);
+        _lvConnections.Columns.Add("Authentication", 110);
+        _lvConnections.Columns.Add("Host", 120);
+        _lvConnections.Columns.Add("Database", 120);
 
         _lvConnections.SelectedIndexChanged += LvConnections_SelectedIndexChanged;
         _lvConnections.DoubleClick += LvConnections_DoubleClick;
@@ -143,6 +144,11 @@ public class ConnectionManagerDialog : Form
         {
             var item = new ListViewItem(connection.Name);
             item.SubItems.Add(connection.DatabaseType.ToString());
+            
+            // Show authentication type
+            string authType = GetAuthenticationDisplay(connection);
+            item.SubItems.Add(authType);
+            
             item.SubItems.Add(connection.Host);
             item.SubItems.Add(connection.Database);
             item.Tag = connection;
@@ -150,6 +156,26 @@ public class ConnectionManagerDialog : Form
         }
 
         UpdateButtonStates();
+    }
+
+    private string GetAuthenticationDisplay(ConnectionInfo connection)
+    {
+        if (connection.DatabaseType == DatabaseType.SqlServer)
+        {
+            return connection.UseWindowsAuth ? "Windows" : "SQL Auth";
+        }
+        else if (connection.DatabaseType == DatabaseType.LiteDB || connection.DatabaseType == DatabaseType.DuckDB)
+        {
+            return "File-based";
+        }
+        else if (string.IsNullOrEmpty(connection.Username))
+        {
+            return "None";
+        }
+        else
+        {
+            return "User/Pass";
+        }
     }
 
     private void LvConnections_SelectedIndexChanged(object? sender, EventArgs e)

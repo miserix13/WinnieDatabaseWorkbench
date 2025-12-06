@@ -8,6 +8,7 @@ public class ConnectionEditorDialog : Form
 {
     private readonly ConnectionInfo _connection;
     private readonly bool _isNewConnection;
+    private readonly IConnectionTestService _connectionTestService;
 
     private Label _lblName = null!;
     private TextBox _txtName = null!;
@@ -30,10 +31,11 @@ public class ConnectionEditorDialog : Form
 
     public ConnectionInfo Connection => _connection;
 
-    public ConnectionEditorDialog(ConnectionInfo? connection = null)
+    public ConnectionEditorDialog(ConnectionInfo? connection = null, IConnectionTestService? connectionTestService = null)
     {
         _connection = connection?.Clone() ?? new ConnectionInfo();
         _isNewConnection = connection == null;
+        _connectionTestService = connectionTestService ?? new ConnectionTestService();
         InitializeComponent();
         LoadConnectionData();
     }
@@ -197,8 +199,8 @@ public class ConnectionEditorDialog : Form
 
     private void UpdateFieldVisibility(DatabaseType dbType)
     {
-        // LiteDB is file-based, hide host/port/username/password
-        bool isFileBased = dbType == DatabaseType.LiteDB;
+        // LiteDB and DuckDB are file-based, hide host/port/username/password
+        bool isFileBased = dbType == DatabaseType.LiteDB || dbType == DatabaseType.DuckDB;
         bool isSqlServer = dbType == DatabaseType.SqlServer;
         
         _lblHost.Visible = !isFileBased;
@@ -239,6 +241,10 @@ public class ConnectionEditorDialog : Form
             DatabaseType.MongoDB => 27017,
             DatabaseType.LiteDB => 0,
             DatabaseType.SurrealDB => 8000,
+            DatabaseType.Garnet => 6379,
+            DatabaseType.Redis => 6379,
+            DatabaseType.Chroma => 8000,
+            DatabaseType.Qdrant => 6333,
             _ => 0
         };
     }
@@ -267,17 +273,54 @@ public class ConnectionEditorDialog : Form
     {
         _btnTestConnection.Enabled = false;
         _btnTestConnection.Text = "Testing...";
+        _btnOk.Enabled = false;
 
         try
         {
-            await Task.Delay(500); // Placeholder for actual connection test
-            MessageBox.Show("Connection test functionality will be implemented soon.", 
-                "Test Connection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // Create a temporary connection with current form values
+            var testConnection = new ConnectionInfo
+            {
+                Name = _txtName.Text.Trim(),
+                DatabaseType = (DatabaseType)_cmbDatabaseType.SelectedIndex,
+                Host = _txtHost.Text.Trim(),
+                Port = (int)_numPort.Value,
+                Database = _txtDatabase.Text.Trim(),
+                UseWindowsAuth = _chkWindowsAuth.Checked,
+                Username = _txtUsername.Text.Trim(),
+                Password = _txtPassword.Text
+            };
+
+            var result = await _connectionTestService.TestConnectionAsync(testConnection);
+
+            if (result.Success)
+            {
+                var message = $"Connection successful!\n\n" +
+                             $"Duration: {result.Duration.TotalMilliseconds:F0} ms\n";
+                
+                if (!string.IsNullOrEmpty(result.ServerVersion))
+                {
+                    message += $"Server: {result.ServerVersion}";
+                }
+
+                MessageBox.Show(message, "Connection Test Successful", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show(result.Message, "Connection Test Failed", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unexpected error during connection test:\n{ex.Message}", 
+                "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
             _btnTestConnection.Enabled = true;
             _btnTestConnection.Text = "Test Connection";
+            _btnOk.Enabled = true;
         }
     }
 }
