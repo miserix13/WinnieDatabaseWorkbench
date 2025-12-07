@@ -7,6 +7,9 @@ using FirebirdSql.Data.FirebirdClient;
 using MongoDB.Driver;
 using LiteDB;
 using DuckDB.NET.Data;
+using SurrealDb.Net;
+using StackExchange.Redis;
+using Qdrant.Client;
 using WinnieDatabaseWorkbench.Models;
 
 namespace WinnieDatabaseWorkbench.Services;
@@ -215,38 +218,132 @@ public class ConnectionTestService : IConnectionTestService
 
     private async Task<string> TestSurrealDbAsync(ConnectionInfo connection)
     {
-        // SurrealDB connection testing
-        // Note: This is a placeholder as SurrealDb.Net may require additional setup
-        await Task.Delay(100); // Simulate connection test
-        return "SurrealDB - Connection test not fully implemented";
+        var endpoint = $"http://{connection.Host}:{connection.Port}";
+        
+        using var client = new SurrealDbClient(endpoint);
+        
+        if (!string.IsNullOrEmpty(connection.Username))
+        {
+            await client.SignIn(new SurrealDb.Net.Models.Auth.RootAuth
+            {
+                Username = connection.Username,
+                Password = connection.Password
+            });
+        }
+        
+        await client.Use(connection.Database, connection.Database);
+        
+        // Test query to verify connection
+        var result = await client.RawQuery("SELECT * FROM type::thing('test', 'test') LIMIT 1");
+        
+        return "SurrealDB";
     }
 
     private async Task<string> TestRedisAsync(ConnectionInfo connection)
     {
-        // Redis connection testing
-        // Note: This is a placeholder as we'd need StackExchange.Redis package
-        await Task.Delay(100); // Simulate connection test
-        return "Redis - Connection test not fully implemented";
+        var configOptions = new ConfigurationOptions
+        {
+            EndPoints = { $"{connection.Host}:{connection.Port}" },
+            ConnectTimeout = 10000,
+            AbortOnConnectFail = false
+        };
+        
+        if (!string.IsNullOrEmpty(connection.Password))
+        {
+            configOptions.Password = connection.Password;
+        }
+        
+        var redis = await ConnectionMultiplexer.ConnectAsync(configOptions);
+        
+        try
+        {
+            var db = redis.GetDatabase();
+            
+            // Ping to verify connection
+            var latency = await db.PingAsync();
+            
+            // Get server info
+            var server = redis.GetServer($"{connection.Host}:{connection.Port}");
+            var info = await server.InfoAsync("server");
+            
+            var versionEntry = info.FirstOrDefault(g => g.Key == "Server");
+            var version = versionEntry?.FirstOrDefault(kv => kv.Key == "redis_version").Value ?? "Unknown";
+            
+            return $"Redis {version}";
+        }
+        finally
+        {
+            await redis.CloseAsync();
+        }
     }
 
     private async Task<string> TestGarnetAsync(ConnectionInfo connection)
     {
-        // Garnet uses Redis protocol, so similar to Redis
-        await Task.Delay(100); // Simulate connection test
-        return "Garnet - Connection test not fully implemented";
+        // Garnet uses Redis protocol, so we use the same client
+        var configOptions = new ConfigurationOptions
+        {
+            EndPoints = { $"{connection.Host}:{connection.Port}" },
+            ConnectTimeout = 10000,
+            AbortOnConnectFail = false
+        };
+        
+        if (!string.IsNullOrEmpty(connection.Password))
+        {
+            configOptions.Password = connection.Password;
+        }
+        
+        var redis = await ConnectionMultiplexer.ConnectAsync(configOptions);
+        
+        try
+        {
+            var db = redis.GetDatabase();
+            
+            // Ping to verify connection
+            await db.PingAsync();
+            
+            return "Garnet (Redis-compatible)";
+        }
+        finally
+        {
+            await redis.CloseAsync();
+        }
     }
 
     private async Task<string> TestChromaAsync(ConnectionInfo connection)
     {
-        // Chroma vector database connection testing
-        await Task.Delay(100); // Simulate connection test
-        return "Chroma - Connection test not fully implemented";
+        var endpoint = $"http://{connection.Host}:{connection.Port}";
+        
+        // Test connection with a simple HTTP request
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var response = await httpClient.GetAsync($"{endpoint}/api/v1/heartbeat");
+        response.EnsureSuccessStatusCode();
+        
+        // Try to get version
+        try
+        {
+            var versionResponse = await httpClient.GetAsync($"{endpoint}/api/v1/version");
+            if (versionResponse.IsSuccessStatusCode)
+            {
+                var version = await versionResponse.Content.ReadAsStringAsync();
+                return $"Chroma {version.Trim('\"')}";
+            }
+        }
+        catch
+        {
+            // Version endpoint might not be available
+        }
+        
+        return "Chroma";
     }
 
     private async Task<string> TestQdrantAsync(ConnectionInfo connection)
     {
-        // Qdrant vector database connection testing
-        await Task.Delay(100); // Simulate connection test
-        return "Qdrant - Connection test not fully implemented";
+        var endpoint = $"http://{connection.Host}:{connection.Port}";
+        var client = new QdrantClient(endpoint);
+        
+        // Test connection by listing collections
+        var collections = await client.ListCollectionsAsync();
+        
+        return "Qdrant";
     }
 }
